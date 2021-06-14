@@ -1,13 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/TasSM/EDA/internal/api"
+	"github.com/TasSM/EDA/internal/clients"
+	"github.com/TasSM/EDA/internal/models"
 	"github.com/nats-io/nats.go"
 )
 
@@ -24,29 +25,22 @@ const (
 )
 
 func main() {
-	log.Printf("Starting Web API on %s", API_PORT)
-	go api.ServeTestAPI(API_PORT)
+
 	log.Printf("Connecting to NATS server on %s", nats.DefaultURL)
-	nc, _ := nats.Connect(nats.DefaultURL)
+	rc := models.CreateNATSConn(nats.DefaultURL)
+	wc := models.CreateNATSConn(nats.DefaultURL)
+	defer rc.Close()
+	defer wc.Close()
+	log.Printf("Starting Web API on %s", API_PORT)
+	go api.ServeTestAPI(API_PORT, wc)
 
-	// pubsub subscriber channel
-	subch := make(chan *nats.Msg, 128)
-	sub, _ := nc.ChanSubscribe(PUBSUB_EVENT, subch)
-	defer sub.Unsubscribe()
-
-	for i := 0; i < WORKER_COUNT; i++ {
-		go newWorker(fmt.Sprint(i), subch)
-	}
+	// register clients / subscribers
+	psc := clients.CreateNATSWorkerPool(2)
+	pssub, _ := rc.ChanSubscribe(PUBSUB_EVENT, psc)
+	defer close(psc)
+	defer pssub.Unsubscribe()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
-}
-
-func newWorker(id string, ch chan *nats.Msg) {
-	log.Printf("Worker %s starting up", id)
-	for {
-		m := <-ch
-		log.Printf("Worker %s received message: %s", id, string(m.Data))
-	}
 }

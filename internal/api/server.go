@@ -10,6 +10,7 @@ import (
 
 func ServeTestAPI(port string, nc *nats.Conn) {
 	svr := http.NewServeMux()
-	svr.HandleFunc("/natsEvent", NatsPubSubHandler(nc))
+	svr.HandleFunc("/natspubsub", NatsPubSubHandler(nc))
+	svr.HandleFunc("/natsreqres", NatsRequestHandler(nc))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", port), svr))
 }

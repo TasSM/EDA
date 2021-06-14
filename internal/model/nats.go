@@ -1,4 +1,4 @@
-package models
+package model
 
 import (
 	"fmt"
@@ -24,4 +24,16 @@ func GenerateNATSEventsPubSub(nc *nats.Conn, count uint16, delay uint16) {
 		nc.Publish("pubsub", []byte(fmt.Sprintf("this is a test event at time %d", time.Now().UTC().Unix())))
 	}
 	log.Printf("NATS event creation completed.")
+}
+
+func MakeNatsRequest(nc *nats.Conn, subj string, msg []byte) (string, error) {
+	log.Printf("Requesting NATS subject %s with message %v", subj, msg)
+	res, err := nc.Request(subj, msg, time.Second*2)
+	if err != nil {
+		if nc.LastError() != nil {
+			return "", nc.LastError()
+		}
+		return "", err
+	}
+	return string(res.Data), nil
 }
